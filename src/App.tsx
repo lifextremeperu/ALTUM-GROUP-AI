@@ -381,7 +381,18 @@ export default function App() {
   const [isAmbientAudioActive, setIsAmbientAudioActive] = useState(false);
   const [isGlobalChatOpen, setIsGlobalChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState('');
-  const [advisoryMessages, setAdvisoryMessages] = useState([{ role: 'bot', text: 'Hola. Soy tu Asesor Premium IA. He notado tu interés en propiedades de alto rendimiento. ¿Qué tipo de inversión buscas?' }, { role: 'bot', text: 'cta_booking' }]);
+  const [advisoryMessages, setAdvisoryMessages] = useState<any[]>([
+    { 
+      role: 'bot', 
+      text: '¡Bienvenido a Altum Inmobiliaria! 🚀 Soy tu Asesor Premium con IA. ¿En qué flujo de información estás interesado hoy?',
+      options: [
+        { label: '🛡️ Escudo Legal', value: 'legal_shield' },
+        { label: '📈 Inversión IA', value: 'investment_ia' },
+        { label: '🎨 Mandy Designer', value: 'mandy_designer' },
+        { label: '🏘️ Tasación Real', value: 'appraisal' }
+      ]
+    }
+  ]);
   const [creditForm, setCreditForm] = useState({ income: 4500, debts: 500, bank: 'BCP' });
   const [creditStatus, setCreditStatus] = useState('idle');
   const [rpaState, setRpaState] = useState('idle');
@@ -780,17 +791,63 @@ export default function App() {
     setMandyMessages(prev => [...prev, { role: 'mandy', text: aiResponse || `Entiendo perfectamente. Para un estilo ${mandySelectedStyle} con acentos en ${mandySelectedColor}, te sugiero optimizar la iluminación natural y usar texturas orgánicas. ¿Te gustaría que genere una visualización de cómo quedaría tu espacio?` }]);
   };
 
-  const handleSendGlobalMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatInput.trim()) return;
-    const userMsg = chatInput;
+  const handleSendGlobalMessage = async (e?: React.FormEvent, optionValue?: string) => {
+    if (e) e.preventDefault();
+    
+    let userMsg = chatInput;
+    if (optionValue) {
+      const optionMap: any = {
+        'legal_shield': '🛡️ Escudo Legal: ¿Cómo funciona?',
+        'investment_ia': '📈 Inversión IA: ¿Qué ROI ofrecen?',
+        'mandy_designer': '🎨 Mandy Designer: Quiero ver diseños',
+        'appraisal': '🏘️ Tasación Real: ¿Cuánto vale mi casa?'
+      };
+      userMsg = optionMap[optionValue] || optionValue;
+    }
+
+    if (!userMsg.trim()) return;
+
     setAdvisoryMessages(prev => [...prev, { role: 'user', text: userMsg }]);
     setChatInput('');
-    
-    const aiResponse = await generateAiResponse(userMsg, "Eres un Asesor Inmobiliario Premium de Altum Inmobiliaria. Ayuda a los usuarios a encontrar las mejores inversiones y propiedades de lujo.");
+    setIsTyping(true);
+
+    let aiResponse = "";
+    let options: any[] = [];
+
+    if (optionValue === 'legal_shield') {
+      aiResponse = "Nuestro Escudo Legal Altum utiliza IA para auditar partidas registrales en tiempo real, detectando gravámenes y riesgos antes de cualquier firma. ¿Te gustaría verificar una propiedad específica ahora?";
+      options = [
+        { label: '🔍 Verificar Propiedad', action: () => { setIsGlobalChatOpen(false); setIsLegalShieldMode(true); setLegalScanStep('select'); } },
+        { label: '📄 Ver Ley 30933', value: 'legal_law' }
+      ];
+    } else if (optionValue === 'investment_ia') {
+      aiResponse = "Nuestra IA analiza más de 200 variables para predecir plusvalía. Actualmente, proyectos como 'Valle Sagrado Eco-Villa' ofrecen un ROI del 18.5%.";
+      options = [
+        { label: '💰 Ver Crowdfunding', action: () => { setIsGlobalChatOpen(false); setIsCrowdfundingMode(true); } },
+        { label: '🤝 Ver Oportunidades JV', action: () => { setIsGlobalChatOpen(false); setIsJVMode(true); } }
+      ];
+    } else if (optionValue === 'mandy_designer') {
+      aiResponse = "Mandy es nuestra arquitecta neuro-sensorial que transforma tus espacios con un solo clic usando IA generativa. ¿Quieres empezar un rediseño?";
+      options = [
+        { label: '✨ Hablar con Mandy', action: () => { setIsGlobalChatOpen(false); setIsMandyMode(true); setMandyStep('chat'); } },
+        { label: '📸 Subir mi Espacio', action: () => { setIsGlobalChatOpen(false); setIsMandyMode(true); setMandyStep('upload'); } }
+      ];
+    } else if (optionValue === 'appraisal') {
+      aiResponse = "Utilizamos Big Data para tazar tu propiedad con precisión quirúrgica basándonos en transacciones reales de la zona.";
+      options = [
+        { label: '📍 Iniciar Tasación', action: () => { setIsGlobalChatOpen(false); setIsAppraiserMode(true); setAppraiserStep('form'); } }
+      ];
+    } else {
+      aiResponse = await generateAiResponse(userMsg, "Eres un Asesor Inmobiliario Premium de Altum Inmobiliaria. Responde de forma elegante y técnica. Si el usuario pregunta por procesos, invítalo a usar las herramientas interactivas del menú superior.");
+    }
     
     setTimeout(() => {
-      setAdvisoryMessages(prev => [...prev, { role: 'bot', text: aiResponse || `Excelente elección. Tenemos unidades "Off-Market" con un ROI proyectado superior al 12%.` }]);
+      setIsTyping(false);
+      setAdvisoryMessages(prev => [...prev, { 
+        role: 'bot', 
+        text: aiResponse || `Excelente consulta. Tenemos opciones exclusivas que se ajustan a tu perfil de inversionista.`,
+        options: options.length > 0 ? options : undefined
+      }]);
     }, 1000);
   };
 
@@ -2847,14 +2904,38 @@ export default function App() {
 
                 <div className="flex-1 overflow-y-auto p-6 space-y-4">
                   {advisoryMessages.map((msg, i) => (
-                    <div key={i} className={cn("flex", msg.role === 'user' ? 'justify-end' : 'justify-start')}>
-                      <div className={cn("max-w-[80%] p-4 rounded-2xl text-sm leading-relaxed", msg.role === 'user' ? 'bg-emerald-500 text-black font-medium' : 'bg-white/5 border border-white/10 text-white/80')}>
+                    <div key={i} className={cn("flex flex-col", msg.role === 'user' ? 'items-end' : 'items-start')}>
+                      <div className={cn("max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed", msg.role === 'user' ? 'bg-emerald-500 text-black font-medium' : 'bg-white/5 border border-white/10 text-white/80')}>
                         {msg.text === 'cta_booking' ? (
                           <button className="w-full py-2 bg-white text-black font-bold rounded-xl mt-2">Agendar Cita</button>
                         ) : msg.text}
                       </div>
+                      
+                      {msg.options && (
+                        <div className="flex flex-wrap gap-2 mt-3">
+                          {msg.options.map((opt: any, idx: number) => (
+                            <button 
+                              key={idx}
+                              onClick={() => {
+                                if (opt.action) opt.action();
+                                else handleSendGlobalMessage(undefined, opt.value);
+                              }}
+                              className="px-4 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-xl text-[10px] font-bold text-emerald-400 uppercase tracking-widest transition-all"
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
+                  {isTyping && (
+                    <div className="flex justify-start">
+                      <div className="bg-white/5 border border-white/10 p-4 rounded-2xl">
+                        <Loader2 className="w-4 h-4 text-emerald-500 animate-spin" />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <form onSubmit={handleSendGlobalMessage} className="p-4 border-t border-white/10 flex gap-2">
